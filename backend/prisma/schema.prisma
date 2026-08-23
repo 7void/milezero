@@ -1,0 +1,309 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  CUSTOMER
+  AGENT
+  ADMIN
+}
+
+enum AgentStatus {
+  AVAILABLE
+  BUSY
+  OFFLINE
+}
+
+enum ServiceType {
+  B2B
+  B2C
+}
+
+enum PaymentMode {
+  PREPAID
+  COD
+}
+
+enum OrderStatus {
+  PENDING
+  ASSIGNED
+  PICKED_UP
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  FAILED
+  RESCHEDULED
+  CANCELLED
+}
+
+enum CodFeeType {
+  FLAT
+  PERCENTAGE
+}
+
+enum AttemptStatus {
+  SUCCESS
+  FAILED
+}
+
+model User {
+  id              String               @id @default(uuid())
+  email           String               @unique
+  passwordHash    String
+  name            String
+  phone           String?
+  role            Role                 @default(CUSTOMER)
+  customerProfile CustomerProfile?
+  agentProfile    AgentProfile?
+  orders          Order[]              @relation("CustomerOrders")
+  addresses       Address[]
+  notifications   Notification[]
+  statusActions   OrderStatusHistory[] @relation("ActorHistory")
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([email])
+  @@index([role])
+}
+
+model CustomerProfile {
+  id                 String       @id @default(uuid())
+  userId             String       @unique
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName        String?
+  gstNumber          String?
+  defaultServiceType ServiceType? @default(B2C)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+}
+
+model AgentProfile {
+  id                 String            @id @default(uuid())
+  userId             String            @unique
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicleType        String            @default("BIKE") // BIKE, VAN, TRUCK, SCOOTER
+  vehicleNumber      String?
+  licenseNumber      String?
+  availabilityStatus AgentStatus       @default(OFFLINE)
+  currentLat         Float?
+  currentLng         Float?
+  lastLocationUpdate DateTime?
+  currentZoneId      String?
+  currentZone        Zone?             @relation(fields: [currentZoneId], references: [id], onDelete: SetNull)
+  assignedOrders     Order[]           @relation("AssignedAgent")
+  deliveryAttempts   DeliveryAttempt[]
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([availabilityStatus])
+  @@index([currentZoneId])
+}
+
+model Address {
+  id           String   @id @default(uuid())
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  contactName  String
+  phone        String
+  email        String?
+  street       String
+  apartment    String?
+  city         String
+  state        String
+  pincode      String
+  lat          Float?
+  lng          Float?
+  zoneId       String?
+  zone         Zone?    @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  pickupOrders Order[]  @relation("PickupAddress")
+  dropOrders   Order[]  @relation("DropAddress")
+  createdAt    DateTime @default(now())
+
+  @@index([pincode])
+  @@index([userId])
+}
+
+model Zone {
+  id           String        @id @default(uuid())
+  code         String        @unique
+  name         String
+  city         String
+  state        String
+  description  String?
+  isActive     Boolean       @default(true)
+  pincodes     ZonePincode[]
+  pickupOrders Order[]       @relation("PickupZone")
+  dropOrders   Order[]       @relation("DropZone")
+  addresses    Address[]
+  agents       AgentProfile[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+}
+
+model ZonePincode {
+  id        String   @id @default(uuid())
+  zoneId    String
+  zone      Zone     @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  pincode   String   @unique
+  areaName  String
+  lat       Float?
+  lng       Float?
+  createdAt DateTime @default(now())
+
+  @@index([pincode])
+  @@index([zoneId])
+}
+
+model RateCard {
+  id             String      @id @default(uuid())
+  code           String      @unique
+  name           String
+  serviceType    ServiceType
+  baseWeightKg   Float       @default(1.0)
+  basePriceIntra Float       @default(40.0)
+  basePriceInter Float       @default(70.0)
+  perKgRateIntra Float       @default(20.0)
+  perKgRateInter Float       @default(35.0)
+  minCharge      Float       @default(0.0)
+  isActive       Boolean     @default(true)
+  description    String?
+  orders         Order[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([serviceType, isActive])
+  @@index([code])
+}
+
+model CodConfig {
+  id            String     @id @default(uuid())
+  name          String
+  feeType       CodFeeType @default(PERCENTAGE)
+  flatFee       Float?     @default(40.0)
+  percentageFee Float?     @default(2.0)
+  minFee        Float      @default(30.0)
+  maxFee        Float?     @default(500.0)
+  isActive      Boolean    @default(true)
+  orders        Order[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([isActive])
+}
+
+model Order {
+  id                   String               @id @default(uuid())
+  trackingNumber       String               @unique
+  customerId           String
+  customer             User                 @relation("CustomerOrders", fields: [customerId], references: [id])
+  agentId              String?
+  agent                AgentProfile?        @relation("AssignedAgent", fields: [agentId], references: [id], onDelete: SetNull)
+  serviceType          ServiceType          @default(B2C)
+  paymentMode          PaymentMode          @default(PREPAID)
+  status               OrderStatus          @default(PENDING)
+  packageDescription   String
+  packageCategory      String?              @default("General Goods")
+  lengthCm             Float
+  widthCm              Float
+  heightCm             Float
+  actualWeightKg       Float
+  volumetricWeightKg   Float
+  billableWeightKg     Float
+  pickupAddressId      String
+  pickupAddress        Address              @relation("PickupAddress", fields: [pickupAddressId], references: [id])
+  dropAddressId        String
+  dropAddress          Address              @relation("DropAddress", fields: [dropAddressId], references: [id])
+  pickupZoneId         String
+  pickupZone           Zone                 @relation("PickupZone", fields: [pickupZoneId], references: [id])
+  dropZoneId           String
+  dropZone             Zone                 @relation("DropZone", fields: [dropZoneId], references: [id])
+  isInterZone          Boolean              @default(false)
+  rateCardId           String?
+  rateCard             RateCard?            @relation(fields: [rateCardId], references: [id], onDelete: SetNull)
+  codConfigId          String?
+  codConfig            CodConfig?           @relation(fields: [codConfigId], references: [id], onDelete: SetNull)
+  baseCharge           Float
+  weightCharge         Float
+  zoneAdjustmentCharge Float                @default(0.0)
+  codSurcharge         Float                @default(0.0)
+  totalPrice           Float
+  specialInstructions  String?
+  scheduledDeliveryDate DateTime?
+  rescheduledDate      DateTime?
+  deliveredAt          DateTime?
+  statusHistory        OrderStatusHistory[]
+  deliveryAttempts     DeliveryAttempt[]
+  notifications        Notification[]
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  @@index([trackingNumber])
+  @@index([customerId])
+  @@index([agentId])
+  @@index([status])
+  @@index([pickupZoneId])
+  @@index([dropZoneId])
+}
+
+model OrderStatusHistory {
+  id          String      @id @default(uuid())
+  orderId     String
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status      OrderStatus
+  actorId     String?
+  actor       User?       @relation("ActorHistory", fields: [actorId], references: [id], onDelete: SetNull)
+  actorRole   String      @default("SYSTEM") // CUSTOMER, AGENT, ADMIN, SYSTEM
+  actorName   String      @default("System")
+  notes       String?
+  locationLat Float?
+  locationLng Float?
+  createdAt   DateTime    @default(now())
+
+  @@index([orderId])
+  @@index([createdAt])
+}
+
+model DeliveryAttempt {
+  id             String        @id @default(uuid())
+  orderId        String
+  order          Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  attemptNumber  Int           @default(1)
+  agentId        String?
+  agent          AgentProfile? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  status         AttemptStatus @default(FAILED)
+  failureReason  String?
+  notes          String?
+  rescheduledFor DateTime?
+  attemptedAt    DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+
+  @@index([orderId])
+  @@index([agentId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId   String?
+  order     Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  title     String
+  message   String
+  type      String   @default("ORDER_STATUS")
+  channel   String   @default("IN_APP")
+  isRead    Boolean  @default(false)
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([orderId])
+}
