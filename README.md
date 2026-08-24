@@ -99,6 +99,33 @@ graph TD
 
 ---
 
+## 🌐 Hosted Deployments & Live Demo
+
+- **Frontend Web Application (Vercel)**: `https://milezero.vercel.app` (or your Vercel deployment URL)
+- **Backend API & Swagger Docs (Render)**: [`https://milezero-xzck.onrender.com/api/docs`](https://milezero-xzck.onrender.com/api/docs)
+- **GitHub Repository**: [`https://github.com/7void/milezero`](https://github.com/7void/milezero)
+
+---
+
+## 🗄️ Database Schema & Relational Models
+
+The relational schema is managed via **Prisma ORM** with PostgreSQL:
+
+| Model / Table | Purpose & Key Fields |
+| :--- | :--- |
+| **`User`** | Accounts with role-based access (`CUSTOMER`, `AGENT`, `ADMIN`), email, hashed password, phone. |
+| **`AgentProfile`** | Delivery agent details, `availabilityStatus` (`AVAILABLE`, `BUSY`, `OFFLINE`), live `currentLat`/`currentLng`, `currentZoneId`, `vehicleType`. |
+| **`Zone`** | Urban logistics zones (`code`, `name`, `city`, `isActive`, `isDefault`). |
+| **`ZonePincode`** | 6-digit postal codes mapped to zones with centroid `lat`/`lng` and area landmarks. |
+| **`RateCard`** | Base pricing rules per service tier (`B2C`, `B2B`), `baseWeightKg`, `baseRateIntra`, `baseRateInter`, `perKgRateIntra`, `perKgRateInter`, `minCharge`. |
+| **`CodConfig`** | Service-specific and global Cash-On-Delivery surcharge rules (`serviceType`, `feeType`, `fixedFee`, `percentage`, `minFee`, `maxFee`). |
+| **`Order`** | Core shipment lifecycle (`trackingNumber`, `serviceType`, `paymentMode`, `status`, volumetric/billable weight, total price breakdown, pickup/drop addresses, assigned agent). |
+| **`OrderStatusHistory`** | **Append-only immutable audit log** tracking every state transition with `actorRole`, `actorId`, `timestamp`, `notes`, and GPS coordinates. |
+| **`DeliveryAttempt`** | Detailed failure audit records (`attemptNumber`, `failureReason`, `driverNotes`, `attemptedAt`). |
+| **`Notification`** | In-app user notifications and dispatch logs with unread badges and channel tracking (`IN_APP`, `EMAIL`). |
+
+---
+
 ## 🚀 Quick Start & Local Setup
 
 ### 1. Prerequisites
@@ -107,7 +134,7 @@ graph TD
 
 ### 2. Clone & Environment Configuration
 ```bash
-git clone https://github.com/your-username/milezero.git
+git clone https://github.com/7void/milezero.git
 cd milezero
 ```
 
