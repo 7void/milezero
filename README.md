@@ -101,7 +101,7 @@ graph TD
 
 ## 🌐 Hosted Deployments & Live Demo
 
-- **Frontend Web Application (Vercel)**: `https://milezero.vercel.app` (or your Vercel deployment URL)
+- **Frontend Web Application (Vercel)**: [`https://milezero-gray.vercel.app`](https://milezero-gray.vercel.app)
 - **Backend API & Swagger Docs (Render)**: [`https://milezero-xzck.onrender.com/api/docs`](https://milezero-xzck.onrender.com/api/docs)
 - **GitHub Repository**: [`https://github.com/7void/milezero`](https://github.com/7void/milezero)
 
