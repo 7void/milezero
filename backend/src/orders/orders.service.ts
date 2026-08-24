@@ -356,13 +356,19 @@ export class OrdersService {
   async updateOrderStatus(id: string, dto: UpdateOrderStatusDto, currentUser: any) {
     const order = await this.getOrderById(id);
 
+    if (currentUser.role === Role.CUSTOMER) {
+      throw new ForbiddenException(
+        'Access denied: Customers cannot directly modify delivery fulfillment status. Use the cancellation or reschedule endpoints instead.',
+      );
+    }
+
     let agentProfile = null;
     if (currentUser.role === Role.AGENT) {
       agentProfile = await this.prisma.agentProfile.findUnique({
         where: { userId: currentUser.id },
       });
       if (!agentProfile || order.agentId !== agentProfile.id) {
-        throw new ForbiddenException('You can only update status for orders assigned to you');
+        throw new ForbiddenException('Access denied: You can only update status for orders assigned to you.');
       }
     }
 
@@ -471,6 +477,13 @@ export class OrdersService {
   async rescheduleOrder(id: string, dto: RescheduleOrderDto, currentUser: any) {
     const order = await this.getOrderById(id, currentUser);
 
+    if (currentUser.role === Role.CUSTOMER && order.customerId !== currentUser.id) {
+      throw new ForbiddenException('Access denied: You can only reschedule your own orders.');
+    }
+    if (currentUser.role === Role.AGENT) {
+      throw new ForbiddenException('Access denied: Delivery agents cannot reschedule orders directly.');
+    }
+
     if (order.status !== OrderStatus.FAILED) {
       throw new BadRequestException(`Only failed orders can be rescheduled. Current status is ${order.status}`);
     }
@@ -562,6 +575,25 @@ export class OrdersService {
    */
   async cancelOrder(id: string, currentUser: any, reason?: string) {
     const order = await this.getOrderById(id, currentUser);
+
+    if (currentUser.role === Role.CUSTOMER) {
+      if (order.customerId !== currentUser.id) {
+        throw new ForbiddenException('Access denied: You can only cancel your own orders.');
+      }
+      const nonCancellableStates: OrderStatus[] = [
+        OrderStatus.PICKED_UP,
+        OrderStatus.IN_TRANSIT,
+        OrderStatus.OUT_FOR_DELIVERY,
+        OrderStatus.DELIVERED,
+      ];
+      if (nonCancellableStates.includes(order.status)) {
+        throw new BadRequestException(
+          `Cannot cancel order once it has reached "${order.status}". Please contact customer support.`,
+        );
+      }
+    } else if (currentUser.role === Role.AGENT) {
+      throw new ForbiddenException('Access denied: Delivery agents cannot cancel customer orders.');
+    }
 
     if (
       order.status === OrderStatus.DELIVERED ||

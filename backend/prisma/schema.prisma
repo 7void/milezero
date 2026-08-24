@@ -186,6 +186,7 @@ model RateCard {
 model CodConfig {
   id            String     @id @default(uuid())
   name          String
+  serviceType   ServiceType?
   feeType       CodFeeType @default(PERCENTAGE)
   flatFee       Float?     @default(40.0)
   percentageFee Float?     @default(2.0)
@@ -197,6 +198,7 @@ model CodConfig {
   updatedAt     DateTime   @updatedAt
 
   @@index([isActive])
+  @@index([serviceType, isActive])
 }
 
 model Order {

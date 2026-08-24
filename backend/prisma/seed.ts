@@ -302,9 +302,23 @@ async function main() {
     },
   });
 
-  const codConfig = await prisma.codConfig.create({
+  const codConfigB2C = await prisma.codConfig.create({
     data: {
-      name: 'Standard COD Surcharge',
+      name: 'B2C COD Surcharge',
+      serviceType: ServiceType.B2C,
+      feeType: CodFeeType.PERCENTAGE,
+      percentageFee: 2.0,
+      flatFee: 40.0,
+      minFee: 30.0,
+      maxFee: 500.0,
+      isActive: true,
+    },
+  });
+
+  const codConfigB2B = await prisma.codConfig.create({
+    data: {
+      name: 'B2B COD Surcharge',
+      serviceType: ServiceType.B2B,
       feeType: CodFeeType.PERCENTAGE,
       percentageFee: 2.0,
       flatFee: 40.0,
@@ -404,7 +418,7 @@ async function main() {
       dropZoneId: zoneSouth.id,
       isInterZone: true,
       rateCardId: rateCardB2B.id,
-      codConfigId: codConfig.id,
+      codConfigId: codConfigB2B.id,
       baseCharge: 200.0,
       weightCharge: 237.5,
       codSurcharge: 40.0,
@@ -450,7 +464,7 @@ async function main() {
       dropZoneId: zoneWest.id,
       isInterZone: true,
       rateCardId: rateCardB2C.id,
-      codConfigId: codConfig.id,
+      codConfigId: codConfigB2C.id,
       baseCharge: 70.0,
       weightCharge: 26.25,
       codSurcharge: 30.0,

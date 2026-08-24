@@ -51,6 +51,28 @@ export class PricingService {
     private readonly zonesService: ZonesService,
   ) {}
 
+  private async getActiveCodConfigForService(serviceType: ServiceType) {
+    const serviceConfig = await this.prisma.codConfig.findFirst({
+      where: {
+        isActive: true,
+        serviceType,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (serviceConfig) {
+      return serviceConfig;
+    }
+
+    return this.prisma.codConfig.findFirst({
+      where: {
+        isActive: true,
+        serviceType: null,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   /**
    * Calculates volumetric weight using standard logistics formula:
    * Volumetric Weight (kg) = (Length cm × Width cm × Height cm) / 5000
@@ -121,10 +143,7 @@ export class PricingService {
     const paymentMode = dto.paymentMode || PaymentMode.PREPAID;
 
     if (paymentMode === PaymentMode.COD) {
-      const codConfig = await this.prisma.codConfig.findFirst({
-        where: { isActive: true },
-        orderBy: { createdAt: 'desc' },
-      });
+      const codConfig = await this.getActiveCodConfigForService(serviceType);
 
       if (codConfig) {
         if (codConfig.feeType === CodFeeType.FLAT) {
@@ -245,16 +264,26 @@ export class PricingService {
     return this.prisma.rateCard.delete({ where: { id } });
   }
 
-  async getCodConfig() {
-    let config = await this.prisma.codConfig.findFirst({
-      where: { isActive: true },
-      orderBy: { createdAt: 'desc' },
+  async getAllCodConfigs(includeInactive = false) {
+    return this.prisma.codConfig.findMany({
+      where: includeInactive ? {} : { isActive: true },
+      orderBy: [{ serviceType: 'asc' }, { createdAt: 'desc' }],
     });
+  }
+
+  async getCodConfig(serviceType?: ServiceType) {
+    let config = serviceType
+      ? await this.getActiveCodConfigForService(serviceType)
+      : await this.prisma.codConfig.findFirst({
+          where: { isActive: true },
+          orderBy: { createdAt: 'desc' },
+        });
 
     if (!config) {
       config = await this.prisma.codConfig.create({
         data: {
-          name: 'Default COD Surcharge',
+          name: serviceType ? `${serviceType} COD Surcharge` : 'Default COD Surcharge',
+          serviceType,
           feeType: CodFeeType.PERCENTAGE,
           percentageFee: 2.0,
           flatFee: 40.0,
@@ -273,6 +302,7 @@ export class PricingService {
       where: { id },
       data: {
         ...(dto.name && { name: dto.name.trim() }),
+        ...(dto.serviceType !== undefined && { serviceType: dto.serviceType }),
         ...(dto.feeType && { feeType: dto.feeType }),
         ...(dto.flatFee !== undefined && { flatFee: dto.flatFee }),
         ...(dto.percentageFee !== undefined && { percentageFee: dto.percentageFee }),

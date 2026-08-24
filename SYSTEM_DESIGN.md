@@ -93,3 +93,57 @@ $$\text{PENDING} \longrightarrow \text{ASSIGNED} \longrightarrow \text{PICKED\_U
 4. **Customer Notification & Reschedule**: The customer receives in-app/email/SMS notifications with a 1-click rescheduling modal.
 5. **Re-Dispatch**: Choosing a new date sets status to `RESCHEDULED`, clearing the previous assignment and re-queuing the shipment for dispatch.
 6. **Immutable Audit Trail (`OrderStatusHistory`)**: Every transition appends an immutable record with actor details, role, timestamp, and GPS coordinates.
+
+---
+
+## 6. Email & In-App Notification Provider Architecture
+
+Notification delivery is designed with **zero-failure resilience** to isolate critical order state transitions from third-party vendor downtime:
+
+```text
+Event Trigger (e.g. Order Created / Out for Delivery / Failed / Rescheduled)
+  │
+  ├─► 1. Always Persist Notification Entity (PostgreSQL) -> User Inbox / Bell Center
+  │
+  └─► 2. Email Dispatch Pipeline:
+         ├─ Check RESEND_API_KEY -> Dispatch via Resend REST API (https://api.resend.com/emails)
+         ├─ Check SENDGRID_API_KEY -> Dispatch via SendGrid v3 Mail API
+         ├─ Check EMAIL_WEBHOOK_URL -> Dispatch via Generic Webhook
+         └─ Fallback: Safe structured audit logging (Zero uncaught exceptions)
+```
+
+All external API interactions are isolated in non-blocking try/catch routines, ensuring that network timeouts or provider unavailability will never block or rollback core database transactions.
+
+---
+
+## 7. Role-Based Access Control & Transition Guarding
+
+To prevent status tampering and unauthorized lifecycle updates, endpoint security enforces multi-layered defense:
+
+| Action / Endpoint | Permitted Roles | Authorization Guard Logic |
+| :--- | :--- | :--- |
+| `POST /orders` | `CUSTOMER`, `ADMIN` | Customer creates for self; Admin can create on behalf of customer. |
+| `PATCH /orders/:id/status` | `AGENT`, `ADMIN` | Strictly barred from customers. Agents can only transition orders currently assigned to their profile. |
+| `POST /orders/:id/reschedule` | `CUSTOMER`, `ADMIN` | Order must be in `FAILED` status and owned by requesting customer. |
+| `POST /orders/:id/cancel` | `CUSTOMER`, `ADMIN` | Customers can only cancel prior to dispatch (`PENDING`, `ASSIGNED`, `RESCHEDULED`). Post-pickup requires Admin override. |
+| `POST /orders/:id/admin-override` | `ADMIN` | Mandatory audit reason recorded directly to `OrderStatusHistory`. |
+
+---
+
+## 8. Multi-Tier COD Surcharge Hierarchy
+
+Cash On Delivery fee calculations follow a hierarchical resolution strategy:
+
+1. **Service-Specific Rule**: The pricing engine first looks up an active `CodConfig` matching the order's `ServiceType` (`B2C` or `B2B`).
+2. **Global Fallback**: If no service-specific rule is found, the active universal `CodConfig` (`serviceType = null`) is applied.
+3. **Dynamic Computation**: Supports percentage-based charges with min/max clamps (e.g. 2% with min ₹30, max ₹500) or flat fees.
+
+---
+
+## 9. Continuous Integration & Quality Assurance
+
+Automated CI executes via GitHub Actions on every push and pull request:
+- **Backend Matrix**: Node.js 20, Prisma schema generation, full Jest unit & FSM regression tests, production bundle compilation.
+- **Frontend Matrix**: TypeScript typecheck (`tsc -b`), production Vite build.
+- **Pre-commit Integrity**: Zero build warnings, clean ESLint validation, deterministic database seeders.
+

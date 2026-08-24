@@ -69,7 +69,7 @@ export class UpdateRateCardDto {
   @ApiPropertyOptional({ enum: ServiceType })
   @IsEnum(ServiceType)
   @IsOptional()
-  serviceType?: ServiceType;
+  serviceType?: ServiceType | null;
 
   @ApiPropertyOptional({ example: 1.0 })
   @IsNumber()
@@ -117,6 +117,11 @@ export class UpdateCodConfigDto {
   @IsString()
   @IsOptional()
   name?: string;
+
+  @ApiPropertyOptional({ enum: ServiceType, description: 'Order type this COD rule applies to. Omit for global fallback.' })
+  @IsEnum(ServiceType)
+  @IsOptional()
+  serviceType?: ServiceType;
 
   @ApiPropertyOptional({ enum: CodFeeType })
   @IsEnum(CodFeeType)

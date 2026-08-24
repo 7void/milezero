@@ -1,0 +1,29 @@
+name: Security & Dependency Audit
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * 0' # Weekly scan every Sunday
+
+jobs:
+  dependency-audit:
+    name: Dependency Vulnerability Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Audit Root Dependencies
+        run: npm audit --audit-level=moderate || true
+
+      - name: Audit Backend Dependencies
+        working-directory: backend
+        run: npm audit --audit-level=moderate || true

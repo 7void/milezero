@@ -8,12 +8,33 @@ import { AgentStatus, OrderStatus } from '@prisma/client';
 export class AgentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getAllAgents(query?: { status?: AgentStatus; zoneId?: string }) {
+  async getAllAgents(query?: {
+    status?: AgentStatus;
+    zoneId?: string;
+    vehicleType?: string;
+    search?: string;
+  }) {
+    const where: any = {
+      ...(query?.status && { availabilityStatus: query.status }),
+      ...(query?.zoneId && { currentZoneId: query.zoneId }),
+      ...(query?.vehicleType && {
+        vehicleType: { equals: query.vehicleType, mode: 'insensitive' },
+      }),
+    };
+
+    if (query?.search) {
+      const term = query.search.trim();
+      where.OR = [
+        { user: { name: { contains: term, mode: 'insensitive' } } },
+        { user: { email: { contains: term, mode: 'insensitive' } } },
+        { user: { phone: { contains: term, mode: 'insensitive' } } },
+        { vehicleType: { contains: term, mode: 'insensitive' } },
+        { vehicleNumber: { contains: term, mode: 'insensitive' } },
+      ];
+    }
+
     return this.prisma.agentProfile.findMany({
-      where: {
-        ...(query?.status && { availabilityStatus: query.status }),
-        ...(query?.zoneId && { currentZoneId: query.zoneId }),
-      },
+      where,
       include: {
         user: {
           select: {

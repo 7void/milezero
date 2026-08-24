@@ -6,7 +6,7 @@ import { CreateRateCardDto, UpdateRateCardDto, UpdateCodConfigDto } from './dto/
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { Role } from '@prisma/client';
+import { Role, ServiceType } from '@prisma/client';
 
 @ApiTags('Pricing & Rate Cards')
 @Controller('pricing')
@@ -59,10 +59,18 @@ export class PricingController {
     return this.pricingService.deleteRateCard(id);
   }
 
+  @Get('cod-configs')
+  @ApiOperation({ summary: 'Get configured COD surcharge rules' })
+  @ApiQuery({ name: 'includeInactive', required: false, type: Boolean })
+  async getCodConfigs(@Query('includeInactive') includeInactive?: boolean) {
+    return this.pricingService.getAllCodConfigs(includeInactive);
+  }
+
   @Get('cod-config')
-  @ApiOperation({ summary: 'Get active COD surcharge configuration' })
-  async getCodConfig() {
-    return this.pricingService.getCodConfig();
+  @ApiOperation({ summary: 'Get active COD surcharge configuration, optionally for one service type' })
+  @ApiQuery({ name: 'serviceType', required: false, enum: ServiceType })
+  async getCodConfig(@Query('serviceType') serviceType?: ServiceType) {
+    return this.pricingService.getCodConfig(serviceType);
   }
 
   @Put('cod-config/:id')

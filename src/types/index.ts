@@ -122,6 +122,7 @@ export interface RateCard {
 export interface CodConfig {
   id: string;
   name: string;
+  serviceType?: ServiceType | null;
   feeType: CodFeeType;
   flatFee?: number | null;
   percentageFee?: number | null;

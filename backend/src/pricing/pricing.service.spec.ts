@@ -296,5 +296,46 @@ describe('PricingService', () => {
       expect(quote.codSurcharge).toBe(30.0);
       expect(quote.totalPrice).toBe(70.0);
     });
+
+    it('should pick service-type specific COD rule over global fallback', async () => {
+      zonesService.resolveZoneByPincode
+        .mockResolvedValueOnce({ zone: mockCentralZone, isFallback: false })
+        .mockResolvedValueOnce({ zone: mockCentralZone, isFallback: false });
+
+      const b2bCodConfig = {
+        id: 'cod-b2b',
+        name: 'B2B Flat COD',
+        serviceType: ServiceType.B2B,
+        feeType: CodFeeType.FLAT,
+        flatFee: 75.0,
+        isActive: true,
+      };
+
+      prismaService.rateCard.findFirst.mockResolvedValue(mockB2BRateCard);
+      prismaService.codConfig.findFirst.mockResolvedValue(b2bCodConfig);
+
+      const quote = await service.calculateQuote({
+        pickupPincode: '560001',
+        dropPincode: '560002',
+        lengthCm: 20,
+        widthCm: 15,
+        heightCm: 10,
+        actualWeightKg: 5.0,
+        serviceType: ServiceType.B2B,
+        paymentMode: PaymentMode.COD,
+      });
+
+      expect(quote.codSurcharge).toBe(75.0);
+    });
+
+    it('should fetch all COD configs with includeInactive option', async () => {
+      prismaService.codConfig.findMany = jest.fn().mockResolvedValue([mockCodConfig]);
+      const result = await service.getAllCodConfigs(true);
+      expect(prismaService.codConfig.findMany).toHaveBeenCalledWith({
+        where: {},
+        orderBy: [{ serviceType: 'asc' }, { createdAt: 'desc' }],
+      });
+      expect(result).toHaveLength(1);
+    });
   });
 });

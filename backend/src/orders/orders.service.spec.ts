@@ -208,4 +208,79 @@ describe('OrdersService', () => {
       ).rejects.toThrow(BadRequestException);
     });
   });
+
+  describe('Authorization & Access Control', () => {
+    const mockOrder = {
+      id: 'order-auth-1',
+      trackingNumber: 'MZ-2026-AUTH',
+      status: OrderStatus.OUT_FOR_DELIVERY,
+      customerId: 'cust-owner',
+      agentId: 'agent-1',
+    };
+
+    it('should forbid customer from updating order delivery status directly', async () => {
+      prismaService.order.findUnique.mockResolvedValue(mockOrder);
+
+      await expect(
+        service.updateOrderStatus(
+          'order-auth-1',
+          { status: OrderStatus.DELIVERED },
+          { id: 'cust-owner', role: Role.CUSTOMER },
+        ),
+      ).rejects.toThrow('Access denied: Customers cannot directly modify delivery fulfillment status');
+    });
+
+    it('should forbid unassigned agent from updating order status', async () => {
+      prismaService.order.findUnique.mockResolvedValue(mockOrder);
+      prismaService.agentProfile.findUnique.mockResolvedValue({ id: 'agent-2', userId: 'user-agent-2' });
+
+      await expect(
+        service.updateOrderStatus(
+          'order-auth-1',
+          { status: OrderStatus.DELIVERED },
+          { id: 'user-agent-2', role: Role.AGENT },
+        ),
+      ).rejects.toThrow('Access denied: You can only update status for orders assigned to you.');
+    });
+
+    it('should forbid customer from cancelling order already in OUT_FOR_DELIVERY', async () => {
+      prismaService.order.findUnique.mockResolvedValue(mockOrder);
+
+      await expect(
+        service.cancelOrder('order-auth-1', { id: 'cust-owner', role: Role.CUSTOMER }, 'Changed mind'),
+      ).rejects.toThrow('Cannot cancel order once it has reached "OUT_FOR_DELIVERY"');
+    });
+
+    it('should forbid non-owner customer from cancelling another customer order', async () => {
+      prismaService.order.findUnique.mockResolvedValue(mockOrder);
+
+      await expect(
+        service.cancelOrder('order-auth-1', { id: 'cust-stranger', role: Role.CUSTOMER }, 'Cancel'),
+      ).rejects.toThrow('Access denied');
+    });
+
+    it('should allow customer to cancel own order in PENDING status', async () => {
+      const pendingOrder = {
+        id: 'order-pending-1',
+        status: OrderStatus.PENDING,
+        customerId: 'cust-owner',
+        agentId: null,
+      };
+      prismaService.order.findUnique.mockResolvedValue(pendingOrder);
+      prismaService.order.update.mockResolvedValue({ ...pendingOrder, status: OrderStatus.CANCELLED });
+
+      const result = await service.cancelOrder(
+        'order-pending-1',
+        { id: 'cust-owner', role: Role.CUSTOMER, name: 'Alice' },
+        'No longer needed',
+      );
+
+      expect(prismaService.order.update).toHaveBeenCalledWith({
+        where: { id: 'order-pending-1' },
+        data: { status: OrderStatus.CANCELLED },
+      });
+      expect(result.status).toBe(OrderStatus.CANCELLED);
+    });
+  });
 });
+

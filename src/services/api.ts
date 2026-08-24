@@ -164,7 +164,10 @@ export const pricingApi = {
   updateRateCard: (id: string, dto: any) =>
     client.put<RateCard>(`/pricing/rate-cards/${id}`, dto),
   deleteRateCard: (id: string) => client.delete(`/pricing/rate-cards/${id}`),
-  getCodConfig: () => client.get<CodConfig>('/pricing/cod-config'),
+  getCodConfig: (serviceType?: ServiceType) =>
+    client.get<CodConfig>(`/pricing/cod-config${serviceType ? `?serviceType=${serviceType}` : ''}`),
+  getCodConfigs: (includeInactive = false) =>
+    client.get<CodConfig[]>(`/pricing/cod-configs?includeInactive=${includeInactive}`),
   updateCodConfig: (id: string, dto: any) =>
     client.put<CodConfig>(`/pricing/cod-config/${id}`, dto),
 };
@@ -194,10 +197,17 @@ export const agentsApi = {
   simulateStep: (dto: { targetLat: number; targetLng: number; stepFraction?: number }) =>
     client.post<AgentProfile>('/agents/me/simulate-step', dto),
   getMyDeliveries: () => client.get<Order[]>('/agents/me/deliveries'),
-  getAllAgents: (params?: { status?: AgentStatus; zoneId?: string }) => {
+  getAllAgents: (params?: {
+    status?: AgentStatus;
+    zoneId?: string;
+    vehicleType?: string;
+    search?: string;
+  }) => {
     const query = new URLSearchParams();
     if (params?.status) query.append('status', params.status);
     if (params?.zoneId) query.append('zoneId', params.zoneId);
+    if (params?.vehicleType) query.append('vehicleType', params.vehicleType);
+    if (params?.search) query.append('search', params.search);
     const qs = query.toString();
     return client.get<AgentProfile[]>(`/agents${qs ? `?${qs}` : ''}`);
   },

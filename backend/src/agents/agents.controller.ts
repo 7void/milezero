@@ -82,14 +82,18 @@ export class AgentsController {
   @Get()
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Get all agents with status and location (Admin only)' })
+  @ApiOperation({ summary: 'Get all agents with status, zone, vehicle, and search filters (Admin only)' })
   @ApiQuery({ name: 'status', required: false, enum: AgentStatus })
   @ApiQuery({ name: 'zoneId', required: false, type: String })
+  @ApiQuery({ name: 'vehicleType', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
   async getAllAgents(
     @Query('status') status?: AgentStatus,
     @Query('zoneId') zoneId?: string,
+    @Query('vehicleType') vehicleType?: string,
+    @Query('search') search?: string,
   ) {
-    return this.agentsService.getAllAgents({ status, zoneId });
+    return this.agentsService.getAllAgents({ status, zoneId, vehicleType, search });
   }
 
   @Get(':id')

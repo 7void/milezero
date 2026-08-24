@@ -1,12 +1,13 @@
 # MileZero 🚚 — Last-Mile Delivery Management Platform
 
+[![CI Pipeline](https://github.com/7void/milezero/actions/workflows/ci.yml/badge.svg)](https://github.com/7void/milezero/actions/workflows/ci.yml)
+[![Security Audit](https://github.com/7void/milezero/actions/workflows/security.yml/badge.svg)](https://github.com/7void/milezero/actions/workflows/security.yml)
+[![Tests](https://img.shields.io/badge/Tests-34%20Passed-emerald.svg)]()
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
 [![NestJS](https://img.shields.io/badge/NestJS-10.4-red.svg)](https://nestjs.com/)
 [![React](https://img.shields.io/badge/React-19.0-61dafb.svg)](https://react.dev/)
 [![Prisma](https://img.shields.io/badge/Prisma-5.22-2D3748.svg)](https://www.prisma.io/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-v4-38bdf8.svg)](https://tailwindcss.com/)
-[![Mapbox](https://img.shields.io/badge/Mapbox-GL-000000.svg)](https://www.mapbox.com/)
-[![Tests](https://img.shields.io/badge/Tests-23%20Passed-emerald.svg)]()
 
 **MileZero** is a modern, production-grade last-mile delivery management platform engineered as a **modular monolith**. It features an authoritative database-driven pricing engine, intelligent geospatial agent assignment, an immutable tracking audit log, multi-attempt failure/rescheduling lifecycles, and a live Mapbox operational map experience.
 
@@ -18,16 +19,18 @@
    - Volumetric weight calculation: $\frac{\text{Length (cm)} \times \text{Width (cm)} \times \text{Height (cm)}}{5000}$.
    - Automatic billable weight determination: $\max(\text{Actual Weight}, \text{Volumetric Weight})$.
    - Intra-zone vs Inter-zone rate cards for **B2C Standard** and **B2B Freight** tiers.
-   - Database-configurable COD collection surcharges (flat or percentage with min/max clamps).
+   - **Service-Type Specific COD Rules**: Multi-tier Cash On Delivery surcharge configuration tailored per service tier (`B2C`, `B2B`) with automated fallback to universal default rate cards.
    - Customers receive an instant, itemized breakdown before order confirmation; the backend remains the sole authoritative source of truth.
 
-2. **Geospatial Agent Auto-Assignment**:
+2. **Geospatial Agent Auto-Assignment & Fleet Management**:
    - Intelligent driver scoring using the **Haversine Distance Formula** to match nearest available agents to pickup locations.
    - Three-tiered fallback logic: Exact Proximity $\to$ Zone Matching $\to$ Fleet Global Pool.
    - Strict agent availability state machine (`AVAILABLE`, `BUSY`, `OFFLINE`).
+   - **Admin Fleet Command & Filtering**: Multi-dimensional filtering across availability status, vehicle types (Bike, Scooter, Van, Truck, EV), operating zones, driver search, and quick capacity metrics.
 
-3. **Finite State Machine & Immutable Tracking**:
+3. **Finite State Machine & Tight RBAC Enforcement**:
    - Strict lifecycle transitions: `PENDING` $\to$ `ASSIGNED` $\to$ `PICKED_UP` $\to$ `IN_TRANSIT` $\to$ `OUT_FOR_DELIVERY` $\to$ `DELIVERED`.
+   - **Tighter Status-Update Authorization**: Explicit role checks ensuring customers cannot tamper with delivery progress; assigned agents can only update their own deliveries; customers can cancel prior to dispatch and reschedule upon failure; admins maintain audited override controls.
    - Append-only immutable tracking history (`OrderStatusHistory`) logging every state change, actor role, timestamp, notes, and GPS coordinates.
 
 4. **Multi-Attempt Failure & Rescheduling Flow**:
@@ -35,13 +38,18 @@
    - The driver is freed back to `AVAILABLE`.
    - The customer can reschedule to a new preferred date, which re-queues the shipment for automated dispatch.
 
-5. **Live Mapbox Operational Experience**:
+5. **Real-Time Email & In-App Notification System**:
+   - Built-in provider hooks for **Transactional Email** via **[Resend](https://resend.com)**, **SendGrid**, and generic webhooks.
+   - Real-time customer delivery updates (`Order Confirmed`, `Package Picked Up`, `Out for Delivery`, `Delivered`, `Delivery Failed/Rescheduled`) delivered directly to recipient inboxes and stored in the persistent in-app notification center.
+   - **Resilient Fallback**: If external providers or API keys are omitted, the notification engine gracefully logs structured audit events while keeping all core database transactions completely intact.
+
+6. **Live Mapbox Operational Experience**:
    - Interactive customer tracking view with pickup/drop pins, animated driver GPS markers, and polyline delivery routes.
    - Driver console with turn-by-turn navigation and simulated GPS route driver.
    - Admin City Fleet Command Tower displaying all active agents and shipments across zones.
    - Built-in vector tactical visualizer fallback for zero-setup demonstration when a Mapbox token is omitted.
 
-6. **1-Click Evaluator Persona Switcher**:
+7. **1-Click Evaluator Persona Switcher**:
    - Instant header switcher allowing evaluators to jump between Admin, Customers, and Delivery Agents in 1 click.
 
 ---

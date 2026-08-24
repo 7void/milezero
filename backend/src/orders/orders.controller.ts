@@ -63,7 +63,9 @@ export class OrdersController {
   }
 
   @Patch(':id/status')
-  @ApiOperation({ summary: 'Update delivery status with state machine enforcement (Agent or Admin)' })
+  @UseGuards(RolesGuard)
+  @Roles(Role.AGENT, Role.ADMIN)
+  @ApiOperation({ summary: 'Update delivery status with state machine enforcement (Agent or Admin only)' })
   async updateStatus(
     @Param('id') id: string,
     @Body() dto: UpdateOrderStatusDto,
@@ -73,7 +75,9 @@ export class OrdersController {
   }
 
   @Post(':id/reschedule')
-  @ApiOperation({ summary: 'Reschedule a failed delivery order (Customer or Admin)' })
+  @UseGuards(RolesGuard)
+  @Roles(Role.CUSTOMER, Role.ADMIN)
+  @ApiOperation({ summary: 'Reschedule a failed delivery order (Customer owner or Admin)' })
   async rescheduleOrder(
     @Param('id') id: string,
     @Body() dto: RescheduleOrderDto,
@@ -95,7 +99,9 @@ export class OrdersController {
   }
 
   @Post(':id/cancel')
-  @ApiOperation({ summary: 'Cancel an order' })
+  @UseGuards(RolesGuard)
+  @Roles(Role.CUSTOMER, Role.ADMIN)
+  @ApiOperation({ summary: 'Cancel an order (Customer owner prior to dispatch or Admin)' })
   async cancelOrder(
     @Param('id') id: string,
     @Body('reason') reason: string,

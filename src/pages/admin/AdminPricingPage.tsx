@@ -17,9 +17,9 @@ export const AdminPricingPage: React.FC = () => {
     queryFn: () => pricingApi.getRateCards(true),
   });
 
-  const { data: codConfig } = useQuery({
-    queryKey: ['admin-cod-config'],
-    queryFn: () => pricingApi.getCodConfig(),
+  const { data: codConfigs = [], isLoading: codConfigsLoading } = useQuery({
+    queryKey: ['admin-cod-configs'],
+    queryFn: () => pricingApi.getCodConfigs(true),
   });
 
   const updateRateCardMutation = useMutation({
@@ -39,6 +39,7 @@ export const AdminPricingPage: React.FC = () => {
     onSuccess: () => {
       setEditingCodConfig(null);
       setSaveSuccessMsg('COD surcharge rules updated successfully.');
+      queryClient.invalidateQueries({ queryKey: ['admin-cod-configs'] });
       queryClient.invalidateQueries({ queryKey: ['admin-cod-config'] });
       setTimeout(() => setSaveSuccessMsg(null), 4000);
     },
@@ -68,6 +69,8 @@ export const AdminPricingPage: React.FC = () => {
     updateCodConfigMutation.mutate({
       id: editingCodConfig.id,
       dto: {
+        name: editingCodConfig.name,
+        serviceType: editingCodConfig.serviceType || null,
         feeType: editingCodConfig.feeType,
         percentageFee: Number(editingCodConfig.percentageFee),
         flatFee: Number(editingCodConfig.flatFee),
@@ -190,43 +193,64 @@ export const AdminPricingPage: React.FC = () => {
       <div className="space-y-3">
         <h2 className="text-[14px] font-medium text-gray-900">Cash On Delivery (COD) Rules</h2>
 
-        {codConfig && (
-          <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-mono">
-                  {codConfig.feeType === 'PERCENTAGE' ? 'PERCENTAGE' : 'FLAT'}
-                </span>
-                <span className="text-gray-900 font-semibold text-[14px]">{codConfig.name}</span>
-              </div>
-              <p className="text-[13px] text-gray-500 max-w-xl leading-relaxed">
-                {codConfig.feeType === 'PERCENTAGE'
-                  ? `Applied as ${codConfig.percentageFee}% of order value or delivery fee (min ₹${codConfig.minFee}, max ₹${codConfig.maxFee || '500'}).`
-                  : `Fixed flat surcharge of ₹${codConfig.flatFee} per COD shipment.`}
-              </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {codConfigsLoading ? (
+            <div className="col-span-full bg-white rounded-lg border border-gray-200 p-8 text-center text-[13px] text-gray-400">
+              Loading COD rules…
             </div>
-
-            <div className="flex items-center gap-4">
-              <div className="text-right font-mono">
-                <div className="text-xl font-semibold text-gray-900">
-                  {codConfig.feeType === 'PERCENTAGE'
-                    ? `${codConfig.percentageFee}%`
-                    : `₹${codConfig.flatFee}`}
-                </div>
-                <div className="text-[11px] text-gray-400">
-                  Min: ₹{codConfig.minFee} · Max: ₹{codConfig.maxFee || '500'}
-                </div>
-              </div>
-
-              <button
-                onClick={() => setEditingCodConfig(codConfig)}
-                className="px-3 py-1.5 rounded-md border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-[13px] font-medium transition-colors cursor-pointer"
+          ) : (
+            codConfigs.map((cfg) => (
+              <div
+                key={cfg.id}
+                className="bg-white rounded-lg border border-gray-200 p-5 shadow-xs flex flex-col justify-between space-y-4"
               >
-                Configure
-              </button>
-            </div>
-          </div>
-        )}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-[11px] font-medium px-2 py-0.5 rounded font-mono ${
+                          cfg.serviceType === 'B2B'
+                            ? 'bg-indigo-50 text-indigo-700'
+                            : cfg.serviceType === 'B2C'
+                            ? 'bg-blue-50 text-blue-700'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {cfg.serviceType ? `${cfg.serviceType} Specific` : 'Global Fallback'}
+                      </span>
+                      <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-mono">
+                        {cfg.feeType === 'PERCENTAGE' ? 'PERCENTAGE' : 'FLAT'}
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => setEditingCodConfig(cfg)}
+                      className="px-2.5 py-1 rounded-md border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-[12px] font-medium transition-colors cursor-pointer"
+                    >
+                      Configure
+                    </button>
+                  </div>
+
+                  <h3 className="text-gray-900 font-semibold text-[14px]">{cfg.name}</h3>
+                  <p className="text-[12px] text-gray-500 leading-relaxed">
+                    {cfg.feeType === 'PERCENTAGE'
+                      ? `Applied as ${cfg.percentageFee}% of order value (min ₹${cfg.minFee}, max ₹${cfg.maxFee || '500'}).`
+                      : `Fixed flat surcharge of ₹${cfg.flatFee} per shipment.`}
+                  </p>
+                </div>
+
+                <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+                  <span className="text-[11px] text-gray-400">
+                    Min: ₹{cfg.minFee} · Max: ₹{cfg.maxFee || '500'}
+                  </span>
+                  <div className="text-lg font-semibold text-gray-900 font-mono">
+                    {cfg.feeType === 'PERCENTAGE' ? `${cfg.percentageFee}%` : `₹${cfg.flatFee}`}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {/* Edit Rate Card Modal */}
@@ -381,6 +405,42 @@ export const AdminPricingPage: React.FC = () => {
       >
         {editingCodConfig && (
           <form onSubmit={handleCodConfigSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Rule Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editingCodConfig.name}
+                  onChange={(e) =>
+                    setEditingCodConfig({
+                      ...editingCodConfig,
+                      name: e.target.value,
+                    })
+                  }
+                  className={inputCls}
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>Service Type Applicability</label>
+                <select
+                  value={editingCodConfig.serviceType || ''}
+                  onChange={(e) =>
+                    setEditingCodConfig({
+                      ...editingCodConfig,
+                      serviceType: e.target.value ? (e.target.value as any) : null,
+                    })
+                  }
+                  className={inputCls}
+                >
+                  <option value="">Global Fallback (All Services)</option>
+                  <option value="B2C">B2C (Consumer Retail)</option>
+                  <option value="B2B">B2B (Enterprise Wholesale)</option>
+                </select>
+              </div>
+            </div>
+
             <div>
               <label className={labelCls}>Fee Type</label>
               <select
