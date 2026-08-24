@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { Navigation, Truck, MapPin, Radio } from 'lucide-react';
+import { Navigation, Truck, MapPin, Radio, Compass, Clock, Milestone } from 'lucide-react';
+import { fetchDrivingRoute, DrivingRouteResult } from '../../services/routing';
 
 export interface MarkerPoint {
   id: string;
@@ -40,9 +41,32 @@ export const MapboxMap: React.FC<MapboxMapProps> = ({
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const [tokenAvailable, setTokenAvailable] = useState<boolean>(true);
   const [activeMarker, setActiveMarker] = useState<MarkerPoint | null>(null);
+  const [routeData, setRouteData] = useState<DrivingRouteResult | null>(null);
+  const [loadingRoute, setLoadingRoute] = useState<boolean>(false);
 
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN || '';
 
+  // 1. Fetch real driving road route whenever routeCoordinates change
+  useEffect(() => {
+    let isMounted = true;
+    if (routeCoordinates.length >= 2) {
+      setLoadingRoute(true);
+      fetchDrivingRoute(routeCoordinates, mapboxToken).then((result) => {
+        if (isMounted) {
+          setRouteData(result);
+          setLoadingRoute(false);
+        }
+      });
+    } else {
+      setRouteData(null);
+      setLoadingRoute(false);
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [routeCoordinates, mapboxToken]);
+
+  // 2. Initialize Mapbox Map
   useEffect(() => {
     if (!mapboxToken || mapboxToken.trim() === '' || mapboxToken === 'YOUR_MAPBOX_TOKEN_HERE') {
       setTokenAvailable(false);
@@ -67,7 +91,7 @@ export const MapboxMap: React.FC<MapboxMapProps> = ({
 
       map.on('load', () => {
         mapRef.current = map;
-        renderMapContent(map);
+        renderMapContent(map, routeData?.coordinates || routeCoordinates);
       });
 
       return () => {
@@ -80,16 +104,19 @@ export const MapboxMap: React.FC<MapboxMapProps> = ({
     }
   }, [mapboxToken]);
 
+  // 3. Re-render markers and route when markers or routeData changes
   useEffect(() => {
     if (mapRef.current) {
-      renderMapContent(mapRef.current);
+      renderMapContent(mapRef.current, routeData?.coordinates || routeCoordinates);
     }
-  }, [markers, routeCoordinates]);
+  }, [markers, routeData, routeCoordinates]);
 
-  const renderMapContent = (map: mapboxgl.Map) => {
+  const renderMapContent = (map: mapboxgl.Map, activeCoords: [number, number][]) => {
+    // Clear existing markers
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
+    // Render Markers
     markers.forEach((pt) => {
       const el = document.createElement('div');
       el.className = 'custom-marker';
@@ -97,20 +124,20 @@ export const MapboxMap: React.FC<MapboxMapProps> = ({
       let iconHtml = '';
       if (pt.type === 'pickup') {
         iconHtml = `
-          <div class="flex items-center justify-center w-7 h-7 rounded-full bg-emerald-600 text-white shadow-md border-2 border-white">
+          <div class="flex items-center justify-center w-7 h-7 rounded-full bg-emerald-600 text-white shadow-md border-2 border-white transition-transform hover:scale-110">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
           </div>
         `;
       } else if (pt.type === 'drop') {
         iconHtml = `
-          <div class="flex items-center justify-center w-7 h-7 rounded-full bg-red-600 text-white shadow-md border-2 border-white">
+          <div class="flex items-center justify-center w-7 h-7 rounded-full bg-red-600 text-white shadow-md border-2 border-white transition-transform hover:scale-110">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
           </div>
         `;
       } else if (pt.type === 'agent') {
         const bg = pt.status === 'AVAILABLE' ? 'bg-emerald-600' : pt.status === 'BUSY' ? 'bg-amber-600' : 'bg-gray-600';
         iconHtml = `
-          <div class="relative flex items-center justify-center w-8 h-8 rounded-full ${bg} text-white shadow-md border-2 border-white">
+          <div class="relative flex items-center justify-center w-8 h-8 rounded-full ${bg} text-white shadow-lg border-2 border-white ring-2 ring-indigo-500/20 transition-transform hover:scale-110 animate-pulse">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
           </div>
         `;
@@ -122,7 +149,7 @@ export const MapboxMap: React.FC<MapboxMapProps> = ({
         <div class="p-1 font-sans">
           <div class="font-semibold text-xs text-gray-900">${pt.title}</div>
           ${pt.subtitle ? `<div class="text-[11px] text-gray-500 mt-0.5">${pt.subtitle}</div>` : ''}
-          ${pt.status ? `<div class="text-[10px] font-medium text-brand-600 mt-0.5 uppercase">${pt.status}</div>` : ''}
+          ${pt.status ? `<div class="text-[10px] font-medium text-brand-600 mt-0.5 uppercase tracking-wider">${pt.status}</div>` : ''}
         </div>
       `);
 
@@ -134,13 +161,14 @@ export const MapboxMap: React.FC<MapboxMapProps> = ({
       markersRef.current.push(marker);
     });
 
-    if (routeCoordinates.length > 1) {
+    // Render Real Road Route Geometry
+    if (activeCoords && activeCoords.length > 1) {
       const geojson: any = {
         type: 'Feature',
         properties: {},
         geometry: {
           type: 'LineString',
-          coordinates: routeCoordinates,
+          coordinates: activeCoords,
         },
       };
 
@@ -152,6 +180,20 @@ export const MapboxMap: React.FC<MapboxMapProps> = ({
           data: geojson,
         });
 
+        // Layer 1: Route casing / shadow outline for crisp road visibility
+        map.addLayer({
+          id: 'route-casing',
+          type: 'line',
+          source: 'route',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#312e81',
+            'line-width': 6,
+            'line-opacity': 0.35,
+          },
+        });
+
+        // Layer 2: Main vibrant driving route line
         map.addLayer({
           id: 'route-line',
           type: 'line',
@@ -159,16 +201,17 @@ export const MapboxMap: React.FC<MapboxMapProps> = ({
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: {
             'line-color': '#4f46e5',
-            'line-width': 3.5,
-            'line-opacity': 0.85,
+            'line-width': 4,
+            'line-opacity': 0.95,
           },
         });
       }
 
+      // Auto-fit camera viewport to include entire route and all waypoints
       const bounds = new mapboxgl.LngLatBounds();
-      routeCoordinates.forEach((coord) => bounds.extend(coord));
+      activeCoords.forEach((coord) => bounds.extend(coord));
       markers.forEach((m) => bounds.extend([m.lng, m.lat]));
-      map.fitBounds(bounds, { padding: 40, maxZoom: 15 });
+      map.fitBounds(bounds, { padding: 45, maxZoom: 15, duration: 1000 });
     }
   };
 
@@ -189,7 +232,7 @@ export const MapboxMap: React.FC<MapboxMapProps> = ({
           ) : (
             <div className="w-full flex flex-col md:flex-row items-center justify-between gap-4 relative">
               {/* Route connecting line */}
-              <div className="hidden md:block absolute top-1/2 left-12 right-12 h-0.5 bg-gray-300 -translate-y-1/2" />
+              <div className="hidden md:block absolute top-1/2 left-12 right-12 h-0.5 bg-indigo-300 -translate-y-1/2 border-dashed border-b border-indigo-400" />
 
               {markers.map((marker) => {
                 const isSelected = activeMarker?.id === marker.id;
@@ -243,7 +286,11 @@ export const MapboxMap: React.FC<MapboxMapProps> = ({
               Center: {center[1].toFixed(4)}° N, {center[0].toFixed(4)}° E
             </span>
           </div>
-          <span className="text-gray-400 text-[11px]">Live Logistics Map</span>
+          {routeData && routeData.distanceKm > 0 && (
+            <span className="text-indigo-600 font-medium font-mono text-[11px]">
+              {routeData.distanceKm} km · ~{routeData.durationMinutes} mins drive
+            </span>
+          )}
         </div>
       </div>
     );
@@ -252,6 +299,29 @@ export const MapboxMap: React.FC<MapboxMapProps> = ({
   return (
     <div className={`relative ${className}`}>
       <div ref={mapContainer} className="w-full h-full" />
+
+      {/* Floating Route Telemetry Pill (when road route is plotted) */}
+      {routeData && routeData.distanceKm > 0 && (
+        <div className="absolute top-3 left-3 z-10 flex items-center gap-2 bg-white/95 backdrop-blur-xs border border-gray-200/80 shadow-md px-3 py-1.5 rounded-full text-xs">
+          <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
+          <div className="flex items-center gap-3 text-gray-700 font-medium">
+            <span className="flex items-center gap-1">
+              <Milestone className="w-3.5 h-3.5 text-indigo-600" />
+              <strong className="text-gray-900 font-semibold">{routeData.distanceKm} km</strong>
+            </span>
+            <span className="text-gray-300">|</span>
+            <span className="flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5 text-amber-600" />
+              <span>~{routeData.durationMinutes} mins</span>
+            </span>
+            {routeData.isRealRoadRoute && (
+              <span className="hidden sm:inline-block px-1.5 py-0.5 bg-indigo-50 text-indigo-700 font-mono text-[10px] rounded uppercase font-semibold">
+                Road Route
+              </span>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

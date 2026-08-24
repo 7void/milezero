@@ -39,7 +39,11 @@ export const PublicTrackingPage: React.FC = () => {
   const routeCoords: [number, number][] = [];
 
   if (tracking) {
-    if (tracking.pickup?.lat && tracking.pickup?.lng) {
+    const pickupPt: [number, number] | null = tracking.pickup?.lat && tracking.pickup?.lng ? [tracking.pickup.lng, tracking.pickup.lat] : null;
+    const dropPt: [number, number] | null = tracking.destination?.lat && tracking.destination?.lng ? [tracking.destination.lng, tracking.destination.lat] : null;
+    const agentPt: [number, number] | null = tracking.assignedAgent?.currentLat && tracking.assignedAgent?.currentLng ? [tracking.assignedAgent.currentLng, tracking.assignedAgent.currentLat] : null;
+
+    if (pickupPt) {
       markers.push({
         id: 'pickup',
         lat: tracking.pickup.lat,
@@ -48,23 +52,9 @@ export const PublicTrackingPage: React.FC = () => {
         title: 'Pickup',
         subtitle: `${tracking.pickup.city} (${tracking.pickup.zone})`,
       });
-      routeCoords.push([tracking.pickup.lng, tracking.pickup.lat]);
     }
 
-    if (tracking.assignedAgent?.currentLat && tracking.assignedAgent?.currentLng) {
-      markers.push({
-        id: 'agent',
-        lat: tracking.assignedAgent.currentLat,
-        lng: tracking.assignedAgent.currentLng,
-        type: 'agent',
-        title: tracking.assignedAgent.name,
-        subtitle: `${tracking.assignedAgent.vehicleType} (${tracking.assignedAgent.vehicleNumber || 'Assigned'})`,
-        status: tracking.assignedAgent.availabilityStatus,
-      });
-      routeCoords.push([tracking.assignedAgent.currentLng, tracking.assignedAgent.currentLat]);
-    }
-
-    if (tracking.destination?.lat && tracking.destination?.lng) {
+    if (dropPt) {
       markers.push({
         id: 'drop',
         lat: tracking.destination.lat,
@@ -73,7 +63,26 @@ export const PublicTrackingPage: React.FC = () => {
         title: 'Destination',
         subtitle: `${tracking.destination.city} (${tracking.destination.zone})`,
       });
-      routeCoords.push([tracking.destination.lng, tracking.destination.lat]);
+    }
+
+    if (agentPt && tracking.assignedAgent) {
+      markers.push({
+        id: 'agent',
+        lat: tracking.assignedAgent.currentLat!,
+        lng: tracking.assignedAgent.currentLng!,
+        type: 'agent',
+        title: tracking.assignedAgent.name,
+        subtitle: `${tracking.assignedAgent.vehicleType} (${tracking.assignedAgent.vehicleNumber || 'Assigned'})`,
+        status: tracking.assignedAgent.availabilityStatus,
+      });
+    }
+
+    if (['PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(tracking.status) && agentPt && dropPt) {
+      routeCoords.push(agentPt, dropPt);
+    } else if (tracking.status === 'ASSIGNED' && agentPt && pickupPt && dropPt) {
+      routeCoords.push(agentPt, pickupPt, dropPt);
+    } else if (pickupPt && dropPt) {
+      routeCoords.push(pickupPt, dropPt);
     }
   }
 

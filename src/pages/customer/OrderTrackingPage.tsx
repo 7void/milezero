@@ -62,17 +62,27 @@ export const OrderTrackingPage: React.FC = () => {
   const markers: MarkerPoint[] = [];
   const routeCoords: [number, number][] = [];
 
-  if (order.pickupAddress.lat && order.pickupAddress.lng) {
+  const pickupPt: [number, number] | null = order.pickupAddress.lat && order.pickupAddress.lng ? [order.pickupAddress.lng, order.pickupAddress.lat] : null;
+  const dropPt: [number, number] | null = order.dropAddress.lat && order.dropAddress.lng ? [order.dropAddress.lng, order.dropAddress.lat] : null;
+  const agentPt: [number, number] | null = order.agent?.currentLat && order.agent?.currentLng ? [order.agent.currentLng, order.agent.currentLat] : null;
+
+  if (pickupPt) {
     markers.push({ id: 'pickup', lat: order.pickupAddress.lat, lng: order.pickupAddress.lng, type: 'pickup', title: 'Pickup', subtitle: `${order.pickupAddress.street}, ${order.pickupAddress.city}` });
-    routeCoords.push([order.pickupAddress.lng, order.pickupAddress.lat]);
   }
-  if (order.agent?.currentLat && order.agent?.currentLng) {
-    markers.push({ id: 'agent', lat: order.agent.currentLat, lng: order.agent.currentLng, type: 'agent', title: order.agent.user?.name || 'Driver', subtitle: `${order.agent.vehicleType}`, status: order.agent.availabilityStatus });
-    routeCoords.push([order.agent.currentLng, order.agent.currentLat]);
-  }
-  if (order.dropAddress.lat && order.dropAddress.lng) {
+  if (dropPt) {
     markers.push({ id: 'drop', lat: order.dropAddress.lat, lng: order.dropAddress.lng, type: 'drop', title: 'Destination', subtitle: `${order.dropAddress.street}, ${order.dropAddress.city}` });
-    routeCoords.push([order.dropAddress.lng, order.dropAddress.lat]);
+  }
+  if (agentPt && order.agent) {
+    markers.push({ id: 'agent', lat: order.agent.currentLat!, lng: order.agent.currentLng!, type: 'agent', title: order.agent.user?.name || 'Driver', subtitle: `${order.agent.vehicleType}`, status: order.agent.availabilityStatus });
+  }
+
+  // Construct driving route sequence based on current delivery state
+  if (['PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(order.status) && agentPt && dropPt) {
+    routeCoords.push(agentPt, dropPt);
+  } else if (order.status === 'ASSIGNED' && agentPt && pickupPt && dropPt) {
+    routeCoords.push(agentPt, pickupPt, dropPt);
+  } else if (pickupPt && dropPt) {
+    routeCoords.push(pickupPt, dropPt);
   }
 
   const getCurrentStepIndex = () => {

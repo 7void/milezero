@@ -103,21 +103,25 @@ export const AgentDashboardPage: React.FC = () => {
   const markers: MarkerPoint[] = [];
   const routeCoords: [number, number][] = [];
 
-  if (profile?.currentLat && profile?.currentLng) {
+  const agentPt: [number, number] | null = profile?.currentLat && profile?.currentLng ? [profile.currentLng, profile.currentLat] : null;
+
+  if (agentPt && profile) {
     markers.push({
       id: 'agent',
-      lat: profile.currentLat,
-      lng: profile.currentLng,
+      lat: profile.currentLat!,
+      lng: profile.currentLng!,
       type: 'agent',
       title: 'My Location',
       subtitle: `${profile.vehicleType} (${profile.vehicleNumber || 'Assigned'})`,
       status: profile.availabilityStatus,
     });
-    routeCoords.push([profile.currentLng, profile.currentLat]);
   }
 
   if (activeDelivery) {
-    if (activeDelivery.pickupAddress.lat && activeDelivery.pickupAddress.lng) {
+    const pickupPt: [number, number] | null = activeDelivery.pickupAddress.lat && activeDelivery.pickupAddress.lng ? [activeDelivery.pickupAddress.lng, activeDelivery.pickupAddress.lat] : null;
+    const dropPt: [number, number] | null = activeDelivery.dropAddress.lat && activeDelivery.dropAddress.lng ? [activeDelivery.dropAddress.lng, activeDelivery.dropAddress.lat] : null;
+
+    if (pickupPt) {
       markers.push({
         id: 'pickup',
         lat: activeDelivery.pickupAddress.lat,
@@ -126,10 +130,9 @@ export const AgentDashboardPage: React.FC = () => {
         title: 'Pickup',
         subtitle: `${activeDelivery.pickupAddress.street}, ${activeDelivery.pickupAddress.city}`,
       });
-      routeCoords.push([activeDelivery.pickupAddress.lng, activeDelivery.pickupAddress.lat]);
     }
 
-    if (activeDelivery.dropAddress.lat && activeDelivery.dropAddress.lng) {
+    if (dropPt) {
       markers.push({
         id: 'drop',
         lat: activeDelivery.dropAddress.lat,
@@ -138,7 +141,14 @@ export const AgentDashboardPage: React.FC = () => {
         title: 'Destination',
         subtitle: `${activeDelivery.dropAddress.street}, ${activeDelivery.dropAddress.city}`,
       });
-      routeCoords.push([activeDelivery.dropAddress.lng, activeDelivery.dropAddress.lat]);
+    }
+
+    if (['PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(activeDelivery.status) && agentPt && dropPt) {
+      routeCoords.push(agentPt, dropPt);
+    } else if (activeDelivery.status === 'ASSIGNED' && agentPt && pickupPt && dropPt) {
+      routeCoords.push(agentPt, pickupPt, dropPt);
+    } else if (pickupPt && dropPt) {
+      routeCoords.push(pickupPt, dropPt);
     }
   }
 
